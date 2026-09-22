@@ -8,7 +8,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from AI_WQ_package import check_fc_submission
-import ftplib
 import os
 from pathlib import Path
 from sites.sdk.sites import Site, Authenticator
@@ -37,39 +36,28 @@ def change_lat_long_coord_names(da):
     da = da.rename({'lon':'longitude'})
     return da
  
-def ftp_or_ecbox_loading(remote_path,local_path,password):
-    # EDITION 2 EDITS. Attempt with FTP and if fails, try with ecbox.
+def ecbox_loading(remote_path,local_path,password):
+    # EDITION 2 EDITS. 
     # log onto FTP session
-    try:
-        session = ftplib.FTP('ftp.ecmwf.int', 'ai_weather_quest', password)
+    # UPDATE, 21st September 2026 - remove any attempt to use FTP site.
+    try: 
+        site = Site.from_space_and_name(space='ecbox', name='AI_Weather_Quest')
+        site_auth = Authenticator.from_token(token=password)
+        content_manager = site.get_content_manager(authenticator=site_auth)
 
+        content = content_manager.download(remote_path=remote_path)
         with open(local_path, 'wb') as f:
-            session.retrbinary(f"RETR {remote_path}", f.write)
+            f.write(content)
 
-        session.quit()
-        print(f"Downloaded via FTP: {remote_path}")
+        if not os.path.exists(local_path):
+            raise RuntimeError("ecbox download did not create local file")
+       
+        if not content:
+            raise RuntimeError(f"No content returned for {remote_path}")
 
-    except ftplib.all_errors as ftp_error:
-        print(f"FTP failed ({ftp_error}); trying ecbox instead")
-
-        try:
-            site = Site.from_space_and_name(space='ecbox', name='AI_Weather_Quest')
-            site_auth = Authenticator.from_token(token=password)
-            content_manager = site.get_content_manager(authenticator=site_auth)
-
-            content = content_manager.download(remote_path=remote_path)
-            with open(local_path, 'wb') as f:
-                f.write(content)
-
-            if not os.path.exists(local_path):
-                raise RuntimeError("ecbox download did not create local file")
-
-            print(f"Downloaded via ecbox: {remote_path}")
-
-        except Exception as ecbox_error:
-            raise RuntimeError(
-                f"Both FTP and ecbox downloads failed for {remote_path}"
-            ) from ecbox_error
+        print(f"Downloaded via ecbox: {remote_path}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to download {remote_path} from ecbox") from e
 
 def retrieve_land_sea_mask(password,local_destination=None):
     #### copy across 1.5 deg land sea mask used for evaluation ####
@@ -80,7 +68,7 @@ def retrieve_land_sea_mask(password,local_destination=None):
         local_filename = f'{local_destination}/land_sea_mask_1pt5DEG.nc'
 
     remote_path = f'land_sea_mask_1pt5DEG.nc'
-    ftp_or_ecbox_loading(remote_path,local_filename,password)
+    ecbox_loading(remote_path,local_filename,password)
 
     # open file using xarray.
     # when opening, drop the time coordinate from the xarray.
@@ -123,7 +111,7 @@ def retrieve_20yr_quantile_clim(date,variable,password,local_destination=None):
 
     remote_path = f'/climatologies/{str_year}/{filename}'
 
-    ftp_or_ecbox_loading(remote_path,local_filename,password)
+    ecbox_loading(remote_path,local_filename,password)
 
     # downloaded single climatological file #### 
     # open file using xarray.
@@ -158,7 +146,7 @@ def retrieve_20yr_MJO_clim(date,password,local_destination=None):
 
     remote_path = f'/climatologies/{str_year}/{filename}'
 
-    ftp_or_ecbox_loading(remote_path,local_filename,password)
+    ecbox_loading(remote_path,local_filename,password)
 
     # downloaded single climatological file #### 
     # open file using xarray.
@@ -197,7 +185,7 @@ def retrieve_weekly_obs(date,variable,password,local_destination=None):
 
     remote_path = f'/observations/{date}/{filename}'
 
-    ftp_or_ecbox_loading(remote_path,local_filename,password)
+    ecbox_loading(remote_path,local_filename,password)
 
     # open file using xarray. # removes time bounds
     try:
@@ -234,7 +222,7 @@ def retrieve_daily_MJO_obs(date, password, local_destination=None,phase_probs=Tr
 
     remote_path = f"/observations/{monday_str}/{filename}"
 
-    ftp_or_ecbox_loading(remote_path, local_filename, password)
+    ecbox_loading(remote_path, local_filename, password)
 
     # Open and select requested day
     ds = xr.open_dataset(local_filename)
@@ -243,6 +231,7 @@ def retrieve_daily_MJO_obs(date, password, local_destination=None,phase_probs=Tr
     ds = ds.drop_vars("time_bnds", errors="ignore")
 
     daily_obs = ds.sel(time=requested_date)
+    print (f"Download weekly MJO timeseries for {monday_str}, but extracting {requested_date}.")
     daily_obs = daily_obs.load()
 
     if phase_probs:
@@ -266,7 +255,7 @@ def retrieve_daily_MJO_obs(date, password, local_destination=None,phase_probs=Tr
 def retrieve_all_period_fcdates(fc_init_date,password):
     local_filename = f'competition_dates_ED2_Aug25_Aug31.csv' # need to update competition dates file so it goes out further.
     remote_path = f'competition_dates_ED2_Aug25_Aug31.csv'
-    ftp_or_ecbox_loading(remote_path,local_filename,password) 
+    ecbox_loading(remote_path,local_filename,password) 
 
     # use pandas to read the csv file. 
     df = pd.read_csv(local_filename)
@@ -298,7 +287,7 @@ def retrieve_all_competition_fcdates(fc_init_date,password,edition='1'):
     # log onto FTP session and download .csv file
     local_filename = f'competition_dates_ED2_Aug25_Aug31.csv' # need to update competition dates file so it goes out further.
     remote_path = f'competition_dates_ED2_Aug25_Aug31.csv'
-    ftp_or_ecbox_loading(remote_path,local_filename,password)
+    ecbox_loading(remote_path,local_filename,password)
 
     # use pandas to read the csv file. 
     df = pd.read_csv(local_filename)

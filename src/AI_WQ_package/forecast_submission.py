@@ -15,27 +15,6 @@ from sites.sdk.sites.utils import FileType
 from pathlib import Path
 from AI_WQ_package import check_fc_submission
 
-def create_ftp_dir_if_does_not_exist(ftp,dir_name):
-    """
-    Create a directory on the FTP server only if it doesn't exist.
-    
-    Parameters:
-        ftp (ftplib.FTP): The FTP connection object.
-        dir_name (str): The name of the directory to create.
-    """
-    try:
-        # Try to list the directory
-        ftp.cwd(dir_name)
-        print(f"Directory '{dir_name}' already exists.")
-    except ftplib.error_perm as e:
-        # If directory doesn't exist (Permission error), create it
-        if "550" in str(e):  # "550" is the FTP error code for "directory not found"
-            ftp.mkd(dir_name)
-            print(f"Directory '{dir_name}' created.")
-        else:
-            # Raise if the error is something else (not directory not found)
-            raise
-
 def create_ecbox_dir_if_does_not_exist(dir_name,password):
     """
     dir_name: YYYYMMDD, forecast initialisation string
@@ -138,10 +117,7 @@ def AI_WQ_create_empty_dataarray(variable,fc_start_date,fc_period,teamname,model
         longitude = np.arange(0.0,360.0,1.5)
     
         # create an appropriate identity names. Unique_ID = origin (characters from teamname [first four + last six - filled with 'z' if needed]). expver_ID (teamname plus '01', '02' etc... where number denotes model number (based on names already in look-up table).
-        try: 
-            origin_id, expver_id = update_table_unique_identifies(teamname,modelname,password) # EDITION 1
-        except:
-            origin_id, expver_id = update_table_unique_identifies_ECBOX(teamname,modelname,password)
+        origin_id, expver_id = update_table_unique_identifies_ECBOX(teamname,modelname,password)
 
         # work out forecast issue time
         fc_issue_time = np.datetime64(fc_issue_date+'T00:00:00')
@@ -195,10 +171,7 @@ def AI_WQ_create_empty_dataarray(variable,fc_start_date,fc_period,teamname,model
         MJO_attrs = {'units':'MJO phase'}
 
         # create an appropriate identity names. Unique_ID = origin (characters from teamname [first four + last six - filled with 'z' if needed]). expver_ID (teamname plus '01', '02' etc... where number denotes model number (based on names already in look-up table).
-        try:
-            origin_id, expver_id = update_table_unique_identifies(teamname,modelname,password) # EDITION 1
-        except:
-            origin_id, expver_id = update_table_unique_identifies_ECBOX(teamname,modelname,password)
+        origin_id, expver_id = update_table_unique_identifies_ECBOX(teamname,modelname,password)
 
         # work out forecast issue time
         fc_issue_time = np.datetime64(fc_issue_date+'T00:00:00')
@@ -246,10 +219,7 @@ def AI_WQ_create_empty_dataarray(variable,fc_start_date,fc_period,teamname,model
         basin_attrs = {'long_name':'Oceanic basin'}
 
         # create an appropriate identity names. Unique_ID = origin (characters from teamname [first four + last six - filled with 'z' if needed]). expver_ID (teamname plus '01', '02' etc... where number denotes model number (based on names already in look-up table).
-        try:
-            origin_id, expver_id = update_table_unique_identifies(teamname,modelname,password) # EDITION 1
-        except:
-            origin_id, expver_id = update_table_unique_identifies_ECBOX(teamname,modelname,password)
+        origin_id, expver_id = update_table_unique_identifies_ECBOX(teamname,modelname,password)
 
         # work out forecast issue time
         fc_issue_time = np.datetime64(fc_issue_date+'T00:00:00')
@@ -305,38 +275,18 @@ def AI_WQ_forecast_submission(data,variable,fc_start_date,fc_period,teamname,mod
     ################################################################################################################
     
     # save new dataset as netCDF to FTP site
-    fc_date = datetime.strptime(fc_start_date, "%Y%m%d")
-    ftp_closure_date = datetime(2026,8,13)
-
-    if fc_date < ftp_closure_date:  # EDITION 1. USE OF FTP SITE 
-        session = ftplib.FTP('ftp.ecmwf.int','ai_weather_quest',password) # open FTP session
-        create_ftp_dir_if_does_not_exist(session,'forecast_submissions/'+fc_start_date) # save the forecast directory if it does not exist
-        remote_path = f"/forecast_submissions/{fc_start_date}/{final_filename}"
-        print (remote_path)
-    
-        file = open(final_filename,'rb') # read the forecast file
-        
-        # as of 6th Dec 2024 - couldn't rewrite over old files so delete if already existing
-        try:
-            session.delete(remote_path)
-            print(f"Existing file '{final_filename}' deleted.")
-        except ftplib.error_perm:
-            pass
-        session.storbinary(f'STOR {remote_path}',file) # transfer to FTP site
-        file.close() # close the file and quit the session
-        session.quit()
-    else: # EDITION 2, USE OF ecBOX
-        # CHECK DIRECTORY EXISTS and if not create it
-        create_ecbox_dir_if_does_not_exist(fc_start_date,password)
-        # open site
-        site = Site.from_space_and_name(space='ecbox', name='AI_Weather_Quest')
-        # use password to create authenticator
-        site_auth = Authenticator.from_token(token=password)
-        # upload content
-        content_manager = site.get_content_manager(authenticator=site_auth) 
-        remote_path = f"forecast_submissions/{fc_start_date}" # remote path to forecast submission directory for that date
-        # UPLOAD file
-        content_manager.upload(local_path=f"{final_filename}", remote_path=f"{remote_path}")
+    # EDITION 2, USE OF ecBOX
+    # CHECK DIRECTORY EXISTS and if not create it
+    create_ecbox_dir_if_does_not_exist(fc_start_date,password)
+    # open site
+    site = Site.from_space_and_name(space='ecbox', name='AI_Weather_Quest')
+    # use password to create authenticator
+    site_auth = Authenticator.from_token(token=password)
+    # upload content
+    content_manager = site.get_content_manager(authenticator=site_auth) 
+    remote_path = f"forecast_submissions/{fc_start_date}" # remote path to forecast submission directory for that date
+    # UPLOAD file
+    content_manager.upload(local_path=f"{final_filename}", remote_path=f"{remote_path}")
 
     os.remove(final_filename) # delete the saved dataarray.
     
@@ -379,42 +329,6 @@ def generate_identifier(teamname, modelname,df):
     df = pd.concat([df, new_row],axis=0,ignore_index=True,sort=False)
 
     return new_identifier, expver_identifier, df
-
-def update_table_unique_identifies(teamname,modelname,password):
-    csv_filename = "AI_WQ_unique_IDs.csv"
-    # read in .csv file stored on ftp site - table of identifies that is stored on FTP site.
-    session = ftplib.FTP('ftp.ecmwf.int','ai_weather_quest',password)
-    try:
-        csv_data = io.StringIO()
-        session.retrlines(f"RETR {csv_filename}", lambda line: csv_data.write(line + "\n"))
-        csv_data.seek(0)
-        df = pd.read_csv(csv_data)
-        print (df)
-    except Exception as e:
-        # if file does not exist, create one and upload to FTP site.
-        print (f"File not found on FTP. Creating a new file. Error: {e}")
-
-        # Define an empty DataFrame with the expected structure
-        df = pd.DataFrame(columns=["Unique_ID", "expver_ID", "Teamname", "Modelname"])
-
-        # Upload the empty file to initialize it on the FTP server
-        csv_output = io.StringIO()
-        df.to_csv(csv_output, index=False)  # Ensure we don't include an index column
-        csv_output.seek(0)
-        session.storbinary(f"STOR {csv_filename}", io.BytesIO(csv_output.getvalue().encode()))
-        print("New file created and uploaded to FTP.") 
-
-    # a function that generates a unique identifier if one cannot be found associated with the model or teamname.
-    str_identity, str_expver_id, df = generate_identifier(teamname,modelname,df)    
- 
-    csv_output = io.StringIO()
-    df.to_csv(csv_output,index=False)
-    csv_output.seek(0)
-
-    session.storbinary(f"STOR {csv_filename}", io.BytesIO(csv_output.getvalue().encode()))
-    session.quit()
-
-    return str_identity, str_expver_id
 
 def update_table_unique_identifies_ECBOX(teamname,modelname,password):
     csv_filename = "AI_WQ_unique_IDs.csv"
@@ -483,61 +397,41 @@ def AI_WQ_check_submission(variable,fc_start_date,fc_period,teamname,modelname,p
     # create filename
     final_filename = variable+'_'+fc_start_date+'_p'+fc_period+'_'+teamname+'_'+modelname+'.nc'
 
-    # save new dataset as netCDF to FTP site
-    fc_date = datetime.strptime(fc_start_date, "%Y%m%d")
-    ftp_closure_date = datetime(2026,8,13)
+    # EDITION 2. USE OF ECBOX   
+    # open site
+    site = Site.from_space_and_name(space='ecbox', name='AI_Weather_Quest')
+    # use password to create authenticator
+    site_auth = Authenticator.from_token(token=password)
+    # upload content
+    content_manager = site.get_content_manager(authenticator=site_auth)
 
-    if fc_date < ftp_closure_date:  # EDITION 1. USE OF FTP SITE 
-        session = ftplib.FTP('ftp.ecmwf.int','ai_weather_quest',password) # open FTP session
-        file_exists=False
-        try:
-            session.cwd(f"/forecast_submissions/{fc_start_date}")
-            files = session.nlst() # get list of files
-            file_exists = final_filename in files
-            if file_exists:
-                print (f"File '{final_filename}' exists. You have successfully submitted to the AI Weather Quest")
-            else:
-                print (f"Could not find '{final_filename}'. Please try resubmitting to the AI Weather Quest.")
-        except ftplib.error_perm as e:
-            if "550" in str(e):
-                print(f"Directory '/forecast_submissions/{fc_start_date}' does not exist. Most likely not a valid forecast initialisation date")
-            else:
-                raise
-    else: # EDITION 2. USE OF ECBOX   
-        # open site
-        site = Site.from_space_and_name(space='ecbox', name='AI_Weather_Quest')
-        # use password to create authenticator
-        site_auth = Authenticator.from_token(token=password)
-        # upload content
-        content_manager = site.get_content_manager(authenticator=site_auth)
+    # remote dir that should contain submission
+    remote_dir = f"forecast_submissions/{fc_start_date}"
 
-        # remote dir that should contain submission
-        remote_dir = f"forecast_submissions/{fc_start_date}"
+    # get all entries in the remote directory
+    try:
+        # List directory contents
+        # List option will only output 100 entries. Need to loop through 100 entries and keep tokens
+        entries = []
+        token = None
+        while True:
+            page = content_manager.list(remote_path=remote_dir,continuation_token=token)
+            entries.extend(page['files'])
 
-        # get all entries in the remote directory
-        try:
-            # List directory contents
-            # List option will only output 100 entries. Need to loop through 100 entries and keep tokens
-            entries = []
-            token = None
-            while True:
-                page = content_manager.list(remote_path=remote_dir,continuation_token=token)
-                entries.extend(page['files'])
+            token = page.get('continuation_token')
+            if not token:
+                break
+    except Exception as e:
+        raise RuntimeError(
+            "Authentication or permission error accessing ECbox."
+        ) from e
 
-                token = page.get('continuation_token')
-                if not token:
-                    break
-        except Exception as e:
-            raise RuntimeError(
-                "Authentication or permission error accessing ECbox."
-            ) from e
-
-        filenames = [os.path.basename(file_entry['path']) for file_entry in entries] # only want filename (no leading directories)
+    filenames = [os.path.basename(file_entry['path']) for file_entry in entries] # only want filename (no leading directories)
         
-        if final_filename in filenames:
-            print(f"File '{final_filename}' exists. "
-                "You have successfully submitted to the AI Weather Quest.")
-        else:
-            raise FileNotFoundError(
-                 f"Could not find '{final_filename}' after upload. "
-                  "Please try resubmitting to the AI Weather Quest.")
+    if final_filename in filenames:
+        print(f"File '{final_filename}' exists. "
+            "You have successfully submitted to the AI Weather Quest.")
+    else:
+        raise FileNotFoundError(
+             f"Could not find '{final_filename}' after upload. "
+              "Please try resubmitting to the AI Weather Quest.")

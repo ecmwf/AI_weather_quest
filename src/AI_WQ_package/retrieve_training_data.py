@@ -8,7 +8,6 @@ import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from AI_WQ_package import check_fc_submission, retrieve_evaluation_data
-import ftplib
 
 def get_basin_domain(basin,format360=False):
     if basin == 'ATL':
@@ -79,7 +78,7 @@ def retrieve_annual_training_data(year,variable,password,local_destination=None)
 
     remote_path = f'/training_data/{filename}'
 
-    retrieve_evaluation_data.ftp_or_ecbox_loading(remote_path,local_filename,password)
+    retrieve_evaluation_data.ecbox_loading(remote_path,local_filename,password)
     
     # open file using xarray. # removes time bounds
     full_year_obs = xr.open_dataset(local_filename).squeeze()
@@ -96,8 +95,8 @@ def retrieve_MJO_projection_data(password,local_destination=None):
         combined_EOFs_fn = f'{local_destination}/{combined_EOFs_fn}'
         RMM_stddevs_fn = f'{local_destination}/{RMM_stddevs_fn}'
 
-    retrieve_evaluation_data.ftp_or_ecbox_loading(f'/training_data/MJO_reference_data/WH04_combinedEOFs.nc',combined_EOFs_fn,password)
-    retrieve_evaluation_data.ftp_or_ecbox_loading(f'/training_data/MJO_reference_data/WH04_RMM_stddevs.nc',RMM_stddevs_fn,password)
+    retrieve_evaluation_data.ecbox_loading(f'/training_data/MJO_reference_data/WH04_combinedEOFs.nc',combined_EOFs_fn,password)
+    retrieve_evaluation_data.ecbox_loading(f'/training_data/MJO_reference_data/WH04_RMM_stddevs.nc',RMM_stddevs_fn,password)
 
     return combined_EOFs_fn, RMM_stddevs_fn
 

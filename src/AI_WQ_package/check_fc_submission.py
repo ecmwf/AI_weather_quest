@@ -4,7 +4,6 @@
 # script to check netCDF file for forecast submission
 import xarray as xr
 import numpy as np
-import ftplib
 from datetime import datetime, timedelta
 import pandas as pd
 import requests
