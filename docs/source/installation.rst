@@ -12,6 +12,8 @@ From August 10th 2026, the AI Weather Quest will be using `ECBox <https://sites.
 
    python3 -m pip install "sites-toolkit>=20261005.1" -i https://get.ecmwf.int/repository/pypi-all/simple
 
+An Apache license applies to all versions of *sites-toolkit* 20261005.1 and later.
+
 To upgrade to the latest version, run:
 
 .. code-block:: bash
